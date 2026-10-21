@@ -1,13 +1,20 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-type Handles = Record<string, { current: { getCurrentTime(): number } | null }>;
+type Handles = Record<string, { current: { getCurrentTime(): number; seek(seconds: number): void } | null }>;
 
 /** A player's playback position, read through the handles the playground exposes. */
 function currentTime(page: Page, player: string): Promise<number> {
   return page.evaluate(
     (name) => (window as unknown as { __surfbort?: Handles }).__surfbort?.[name]?.current?.getCurrentTime() ?? -1,
     player,
+  );
+}
+
+function seek(page: Page, player: string, seconds: number): Promise<void> {
+  return page.evaluate(
+    ([name, to]) => (window as unknown as { __surfbort?: Handles }).__surfbort?.[name]?.current?.seek(to),
+    [player, seconds] as const,
   );
 }
 
@@ -27,7 +34,7 @@ test("loads without console errors", async ({ page }) => {
   page.on("pageerror", (error) => problems.push(error.message));
   // Navigate once and never reload: WebKit reports the fetches a reload cancels as errors.
   await page.goto("/");
-  await expect(page.locator(".surfbort-waveform")).toHaveCount(7);
+  await expect(page.locator(".surfbort-waveform")).toHaveCount(6);
   await expect(page.locator(".surfbort-waveform[data-loading]")).toHaveCount(0);
   await expect(page.locator(".surfbort-waveform canvas").first()).toBeVisible();
   expect(problems).toEqual([]);
@@ -76,23 +83,26 @@ test.describe("with the playground open", () => {
   });
 
   test("moves on to the next track when one ends", async ({ page }) => {
-    const player = await ready(page.getByRole("region", { name: "Short Tracks" }));
-    await player.getByRole("button", { name: "Play Closeout" }).click();
+    const player = await ready(page.getByRole("region", { name: "Summer Demos" }));
+    await player.getByRole("button", { name: "Play", exact: true }).click();
+    await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
 
-    await expect(player.getByRole("listitem").nth(1)).toHaveAttribute("aria-current", "true", { timeout: 15_000 });
-    await expect(player.getByRole("button", { name: "Pause Duck Dive" })).toBeVisible();
-    await expect.poll(() => currentTime(page, "short")).toBeGreaterThan(0.2);
+    // Skip to the last second of Low Tide instead of waiting out all 36.
+    await seek(page, "summer", 35);
+    await expect(player.getByRole("listitem").nth(1)).toHaveAttribute("aria-current", "true", { timeout: 10_000 });
+    await expect(player.getByRole("button", { name: "Pause Set Break" })).toBeVisible();
+    await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
   });
 
   test("pauses the other player when one starts", async ({ page }) => {
     const summer = await ready(page.getByRole("region", { name: "Summer Demos" }));
-    const short = await ready(page.getByRole("region", { name: "Short Tracks" }));
+    const sunset = await ready(page.getByRole("region", { name: "Sunset Session" }));
 
     await summer.getByRole("button", { name: "Play", exact: true }).click();
     await expect(summer.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
-    await short.getByRole("button", { name: "Play", exact: true }).click();
+    await sunset.getByRole("button", { name: "Play", exact: true }).click();
 
-    await expect(short.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+    await expect(sunset.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
     await expect(summer.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   });
 

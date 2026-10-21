@@ -13,7 +13,7 @@ import gifenc from "gifenc";
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 
 /** Bump when the output changes, so --if-missing regenerates. */
-const VERSION = 1;
+const VERSION = 2;
 const OUT = join(import.meta.dirname, "../playground/public/demo");
 const MANIFEST = join(OUT, "manifest.json");
 const SAMPLE_RATE = 22050;
@@ -103,12 +103,6 @@ const tracks = {
     const freq = note([0, 4, 7, 12, 7, 4, 9, 7][index % 8] + (bar % 2 ? -5 : 0));
     const pluck = (Math.sin(TAU * freq * local) + 0.3 * Math.sin(TAU * freq * 2 * local)) * Math.exp(-local * 9);
     return pluck * (bar % 4 === 3 ? 0.06 : 1) * fade(t, 26);
-  }),
-
-  // One chord ringing out. Short enough for the auto-advance test.
-  closeout: render(5, (t) => {
-    const chord = Math.sin(TAU * note(0) * t) + Math.sin(TAU * note(4) * t) + Math.sin(TAU * note(7) * t);
-    return chord * Math.exp(-t * 0.9) * fade(t, 5);
   }),
 };
 

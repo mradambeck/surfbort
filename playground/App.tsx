@@ -63,16 +63,6 @@ const artTracks: Track[] = [
   },
 ];
 
-const shortTracks: Track[] = [
-  { src: demo("closeout"), title: "Closeout", artist: "Surfbort", duration: 5 },
-  {
-    src: demo("duck-dive"),
-    title: "Duck Dive",
-    artist: "Surfbort",
-    duration: 26,
-  },
-];
-
 /** Set Break's precomputed peaks, so it streams instead of downloading first. */
 function useSummerTracks(): Track[] | null {
   const [tracks, setTracks] = useState<Track[] | null>(null);
@@ -119,7 +109,6 @@ export function App() {
   const sunsetRef = useRef<PlaylistHandle>(null);
   const pocketRef = useRef<PlaylistHandle>(null);
   const partsRef = useRef<PlaylistHandle>(null);
-  const shortRef = useRef<PlaylistHandle>(null);
   useEffect(() => {
     window.__surfbort = {
       summer: summerRef,
@@ -128,7 +117,6 @@ export function App() {
       sunset: sunsetRef,
       pocket: pocketRef,
       parts: partsRef,
-      short: shortRef,
     };
   }, []);
 
