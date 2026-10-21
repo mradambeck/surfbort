@@ -1,0 +1,129 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --page-bg: #f5f7f7;
+  --page-fg: #172124;
+  --page-muted: #56656a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page-bg: #0b0f11;
+    --page-fg: #e6eced;
+    --page-muted: #98a6aa;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-fg);
+}
+
+main {
+  display: grid;
+  gap: 56px;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 48px 20px 96px;
+}
+
+header h1 {
+  margin: 0 0 8px;
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+}
+
+header p,
+.demo-description {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--page-muted);
+  line-height: 1.5;
+}
+
+.demo h2 {
+  margin: 0 0 6px;
+  color: var(--page-muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-description {
+  margin-bottom: 18px;
+}
+
+.stack {
+  display: grid;
+  gap: 24px;
+}
+
+.narrow {
+  max-width: 360px;
+}
+
+/* A full rebrand, done with custom properties alone. */
+.sunset {
+  --surfbort-font-family: Georgia, "Times New Roman", serif;
+  --surfbort-radius: 6px;
+  --surfbort-radius-inner: 3px;
+  --surfbort-bg: #fff7ef;
+  --surfbort-surface: #ffe7d3;
+  --surfbort-fg: #3a1c0d;
+  --surfbort-muted: #7c4a2c;
+  --surfbort-border: rgb(58 28 13 / 0.14);
+  --surfbort-accent: #a83a0b;
+  --surfbort-accent-fg: #fff7ef;
+  --surfbort-wave-color: rgb(58 28 13 / 0.28);
+  --surfbort-cursor-color: #3a1c0d;
+  --surfbort-shadow: 6px 6px 0 rgb(58 28 13 / 0.9);
+  --surfbort-waveform-height: 72px;
+  color-scheme: light;
+}
+
+/* Built from parts */
+
+.parts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.parts-card {
+  display: grid;
+  gap: 16px;
+}
+
+.parts-heading {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.surfbort .parts-artwork {
+  width: 72px;
+}
+
+.parts-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.surfbort .parts-time {
+  gap: 10px;
+  margin-inline-start: auto;
+  font-size: 0.875em;
+}
+
+.surfbort .parts-list {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .parts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

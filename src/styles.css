@@ -1,0 +1,683 @@
+/*
+ * Surfbort default theme.
+ *
+ * The idea here is for this to be heavily stylable by anyone pulling in this package.
+ *
+ * Tokens are declared inside :where(), which gives them zero specificity, so setting any
+ * of them on .surfbort (or a class of your own) overrides it in both themes. Component
+ * rules use one class each: enough to beat element resets on the host page, and easy to
+ * override by loading your CSS after this file or adding a class.
+ *
+ * The waveform is drawn on a canvas, so --surfbort-wave-color, --surfbort-progress-color
+ * and --surfbort-cursor-color are read from script. They accept any CSS color.
+ */
+
+/* Light tokens, plus everything both themes share. */
+:where(.surfbort) {
+  --surfbort-font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --surfbort-font-size: 0.9375rem;
+  --surfbort-radius: 18px;
+  --surfbort-radius-inner: 12px;
+  --surfbort-padding: 16px;
+  --surfbort-gap: 16px;
+  --surfbort-artwork-size: 184px;
+  /* Artwork width once a narrow player stacks it above the panel. */
+  --surfbort-artwork-stacked-size: 100%;
+  --surfbort-waveform-height: 56px;
+  --surfbort-play-size: 52px;
+  --surfbort-button-size: 36px;
+
+  --surfbort-bg: #ffffff;
+  --surfbort-surface: #f1f4f4;
+  --surfbort-fg: #142024;
+  --surfbort-muted: #56656a;
+  --surfbort-border: rgb(20 32 36 / 0.1);
+  --surfbort-accent: #0b6f6a;
+  --surfbort-accent-fg: #ffffff;
+  --surfbort-highlight: var(--surfbort-accent);
+  --surfbort-danger: #b42318;
+  --surfbort-focus-ring: var(--surfbort-accent);
+  --surfbort-rail: rgb(20 32 36 / 0.16);
+  --surfbort-hover-bg: rgb(20 32 36 / 0.05);
+  --surfbort-track-active-bg: color-mix(
+    in srgb,
+    var(--surfbort-accent) 10%,
+    transparent
+  );
+  --surfbort-wave-color: rgb(20 32 36 / 0.22);
+  --surfbort-progress-color: var(--surfbort-accent);
+  --surfbort-cursor-color: var(--surfbort-accent);
+  --surfbort-shadow:
+    0 1px 2px rgb(20 32 36 / 0.05), 0 16px 36px -18px rgb(20 32 36 / 0.25);
+
+  /* A panel with a background image switches to these, in either theme. */
+  --surfbort-on-image-fg: #ffffff;
+  --surfbort-on-image-muted: rgb(255 255 255 / 0.8);
+  --surfbort-on-image-wave-color: rgb(255 255 255 / 0.45);
+  --surfbort-on-image-progress-color: #ffffff;
+  --surfbort-on-image-cursor-color: #ffffff;
+  --surfbort-on-image-hover-bg: rgb(255 255 255 / 0.16);
+  --surfbort-on-image-rail: rgb(255 255 255 / 0.32);
+  --surfbort-on-image-danger: #ffb4ab;
+  --surfbort-scrim: linear-gradient(
+    180deg,
+    rgb(5 12 14 / 0.3) 0%,
+    rgb(5 12 14 / 0.68) 100%
+  );
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(.surfbort:not([data-theme="light"])) {
+    --surfbort-bg: #101618;
+    --surfbort-surface: #182124;
+    --surfbort-fg: #ecf2f2;
+    --surfbort-muted: #98a6aa;
+    --surfbort-border: rgb(255 255 255 / 0.08);
+    --surfbort-accent: #4fd1c5;
+    --surfbort-accent-fg: #062320;
+    --surfbort-danger: #ff8a80;
+    --surfbort-rail: rgb(255 255 255 / 0.2);
+    --surfbort-hover-bg: rgb(255 255 255 / 0.05);
+    --surfbort-track-active-bg: color-mix(
+      in srgb,
+      var(--surfbort-accent) 12%,
+      transparent
+    );
+    --surfbort-wave-color: rgb(255 255 255 / 0.24);
+    --surfbort-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3), 0 20px 44px -20px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+
+:where(.surfbort[data-theme="dark"]) {
+  --surfbort-bg: #101618;
+  --surfbort-surface: #182124;
+  --surfbort-fg: #ecf2f2;
+  --surfbort-muted: #98a6aa;
+  --surfbort-border: rgb(255 255 255 / 0.08);
+  --surfbort-accent: #4fd1c5;
+  --surfbort-accent-fg: #062320;
+  --surfbort-danger: #ff8a80;
+  --surfbort-rail: rgb(255 255 255 / 0.2);
+  --surfbort-hover-bg: rgb(255 255 255 / 0.05);
+  --surfbort-track-active-bg: color-mix(
+    in srgb,
+    var(--surfbort-accent) 12%,
+    transparent
+  );
+  --surfbort-wave-color: rgb(255 255 255 / 0.24);
+  --surfbort-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3), 0 20px 44px -20px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+/* Root */
+
+.surfbort {
+  container: surfbort / inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: var(--surfbort-padding);
+  border: 1px solid var(--surfbort-border);
+  border-radius: var(--surfbort-radius);
+  background: var(--surfbort-bg);
+  box-shadow: var(--surfbort-shadow);
+  color: var(--surfbort-fg);
+  font-family: var(--surfbort-font-family);
+  font-size: var(--surfbort-font-size);
+  line-height: 1.45;
+  text-align: start;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.surfbort *,
+.surfbort *::before,
+.surfbort *::after {
+  box-sizing: border-box;
+}
+
+/* Player: artwork beside the panel */
+
+.surfbort-player {
+  display: flex;
+  gap: var(--surfbort-gap);
+  align-items: stretch;
+}
+
+.surfbort[data-artwork-position="right"] .surfbort-player {
+  flex-direction: row-reverse;
+}
+
+.surfbort-artwork {
+  display: block;
+  flex: none;
+  align-self: flex-start;
+  width: var(--surfbort-artwork-size);
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--surfbort-radius-inner);
+  background: var(--surfbort-surface);
+}
+
+.surfbort-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  min-height: var(--surfbort-artwork-size);
+  padding: 16px 18px 14px;
+  border-radius: var(--surfbort-radius-inner);
+  background: var(--surfbort-surface);
+  color: var(--surfbort-fg);
+}
+
+.surfbort-player:not(:has(.surfbort-artwork)) .surfbort-panel {
+  min-height: 0;
+}
+
+.surfbort-panel[data-has-background] {
+  --surfbort-fg: var(--surfbort-on-image-fg);
+  --surfbort-muted: var(--surfbort-on-image-muted);
+  --surfbort-wave-color: var(--surfbort-on-image-wave-color);
+  --surfbort-progress-color: var(--surfbort-on-image-progress-color);
+  --surfbort-cursor-color: var(--surfbort-on-image-cursor-color);
+  --surfbort-hover-bg: var(--surfbort-on-image-hover-bg);
+  --surfbort-rail: var(--surfbort-on-image-rail);
+  --surfbort-danger: var(--surfbort-on-image-danger);
+  --surfbort-focus-ring: var(--surfbort-on-image-fg);
+  background: #0c1517;
+  color-scheme: dark;
+}
+
+.surfbort-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  pointer-events: none;
+}
+
+.surfbort-background img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.surfbort-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surfbort-scrim);
+}
+
+/* Header: title, now playing, volume */
+
+.surfbort-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.surfbort-heading {
+  min-width: 0;
+}
+
+.surfbort-title {
+  margin: 0;
+  color: var(--surfbort-fg);
+  font: inherit;
+  font-size: 1.375em;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+}
+
+.surfbort-now-playing {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--surfbort-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.surfbort-now-playing-title {
+  color: var(--surfbort-fg);
+  font-weight: 550;
+}
+
+.surfbort-now-playing-error {
+  display: block;
+  color: var(--surfbort-danger);
+  white-space: normal;
+}
+
+.surfbort-volume {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin: -6px -8px 0 0;
+}
+
+/* Buttons */
+
+.surfbort-play-button,
+.surfbort-skip-button,
+.surfbort-mute-button,
+.surfbort-track-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.surfbort-play-button:disabled,
+.surfbort-skip-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.surfbort-play-button:focus-visible,
+.surfbort-skip-button:focus-visible,
+.surfbort-mute-button:focus-visible,
+.surfbort-track-button:focus-visible {
+  outline: 2px solid var(--surfbort-focus-ring);
+  outline-offset: 2px;
+}
+
+.surfbort-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.surfbort-play-button {
+  width: var(--surfbort-play-size);
+  height: var(--surfbort-play-size);
+  background: var(--surfbort-accent);
+  color: var(--surfbort-accent-fg);
+  box-shadow: 0 8px 18px -8px
+    color-mix(in srgb, var(--surfbort-accent) 80%, transparent);
+}
+
+.surfbort-play-button .surfbort-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.surfbort-play-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.surfbort-play-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.surfbort-skip-button,
+.surfbort-mute-button {
+  width: var(--surfbort-button-size);
+  height: var(--surfbort-button-size);
+  color: var(--surfbort-fg);
+}
+
+.surfbort-skip-button:hover:not(:disabled),
+.surfbort-mute-button:hover {
+  background: var(--surfbort-hover-bg);
+}
+
+.surfbort-spinner {
+  animation: surfbort-spin 0.8s linear infinite;
+}
+
+@keyframes surfbort-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Transport: skip and play buttons, waveform, time */
+
+.surfbort-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.surfbort-seek {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin-inline-start: 10px;
+}
+
+.surfbort-waveform {
+  position: relative;
+  height: var(--surfbort-waveform-height);
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.surfbort-waveform:focus-visible {
+  outline: 2px solid var(--surfbort-focus-ring);
+  outline-offset: 4px;
+}
+
+.surfbort-waveform-canvas {
+  height: 100%;
+  transition: opacity 200ms ease;
+}
+
+.surfbort-waveform[data-loading] .surfbort-waveform-canvas {
+  opacity: 0.35;
+}
+
+/* Download progress for the loading track, driven by --surfbort-load-progress. */
+.surfbort-waveform::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: -3px;
+  width: var(--surfbort-load-progress, 0%);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--surfbort-progress-color);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    width 200ms ease,
+    opacity 300ms ease;
+}
+
+.surfbort-waveform[data-loading]::after {
+  opacity: 0.8;
+}
+
+.surfbort-time {
+  display: flex;
+  justify-content: space-between;
+  color: var(--surfbort-muted);
+  font-size: 0.75em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Volume slider */
+
+.surfbort-volume-slider {
+  width: 84px;
+  height: 20px;
+  margin: 0 6px 0 2px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.surfbort-volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--surfbort-fg) var(--surfbort-volume-level, 100%),
+    var(--surfbort-rail) var(--surfbort-volume-level, 100%)
+  );
+}
+
+.surfbort-volume-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--surfbort-fg) var(--surfbort-volume-level, 100%),
+    var(--surfbort-rail) var(--surfbort-volume-level, 100%)
+  );
+}
+
+.surfbort-volume-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surfbort-fg);
+  appearance: none;
+}
+
+.surfbort-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surfbort-fg);
+}
+
+.surfbort-volume-slider:focus-visible {
+  outline: 2px solid var(--surfbort-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Track list */
+
+.surfbort-tracklist {
+  display: grid;
+  gap: 2px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.surfbort-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.25em var(--surfbort-button-size) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 52px;
+  margin: 0;
+  padding: 6px 14px 6px 6px;
+  border-radius: var(--surfbort-radius-inner);
+  color: var(--surfbort-fg);
+  transition: background-color 120ms ease;
+}
+
+.surfbort-track:hover {
+  background: var(--surfbort-hover-bg);
+}
+
+.surfbort-track[data-active] {
+  background: var(--surfbort-track-active-bg);
+  color: var(--surfbort-highlight);
+}
+
+.surfbort-track-number {
+  color: var(--surfbort-muted);
+  font-size: 0.8125em;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.surfbort-track-button {
+  width: var(--surfbort-button-size);
+  height: var(--surfbort-button-size);
+  color: var(--surfbort-muted);
+}
+
+.surfbort-track-button .surfbort-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Stretches the button's hit area over the whole row. */
+.surfbort-track-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--surfbort-radius-inner);
+}
+
+.surfbort-track:hover .surfbort-track-button {
+  color: var(--surfbort-fg);
+}
+
+.surfbort-track[data-active] .surfbort-track-number {
+  color: inherit;
+}
+
+.surfbort-track[data-active] .surfbort-track-button {
+  background: var(--surfbort-accent);
+  color: var(--surfbort-accent-fg);
+}
+
+.surfbort-track-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.surfbort-track-title {
+  overflow: hidden;
+  font-weight: 550;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.surfbort-track-artist {
+  overflow: hidden;
+  color: var(--surfbort-muted);
+  font-size: 0.8125em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.surfbort-track[data-active] .surfbort-track-artist {
+  color: inherit;
+}
+
+.surfbort-track[data-error] .surfbort-track-title {
+  color: var(--surfbort-danger);
+}
+
+.surfbort-track-duration {
+  color: var(--surfbort-muted);
+  font-size: 0.8125em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* With :has(), the focus ring moves from the small button to the whole row. */
+@supports selector(:has(*)) {
+  .surfbort-track-button:focus-visible {
+    outline: none;
+  }
+
+  .surfbort-track:has(.surfbort-track-button:focus-visible) {
+    outline: 2px solid var(--surfbort-focus-ring);
+    outline-offset: -2px;
+  }
+}
+
+.surfbort-empty {
+  margin: 14px 0 2px;
+  color: var(--surfbort-muted);
+  text-align: center;
+}
+
+.surfbort-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
+/* Narrow players stack the artwork above the panel and put the waveform on its own row. */
+
+@container surfbort (max-width: 560px) {
+  .surfbort-player,
+  .surfbort[data-artwork-position="right"] .surfbort-player {
+    flex-direction: column;
+  }
+
+  .surfbort-artwork {
+    align-self: center;
+    width: var(--surfbort-artwork-stacked-size);
+  }
+
+  .surfbort-panel {
+    min-height: 0;
+  }
+
+  .surfbort-volume-slider {
+    display: none;
+  }
+
+  .surfbort-transport {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 14px;
+  }
+
+  .surfbort-seek {
+    flex-basis: 100%;
+    order: -1;
+    margin: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surfbort-play-button,
+  .surfbort-skip-button,
+  .surfbort-mute-button,
+  .surfbort-track-button,
+  .surfbort-track,
+  .surfbort-waveform-canvas,
+  .surfbort-waveform::after {
+    transition: none;
+  }
+
+  .surfbort-play-button:active:not(:disabled) {
+    transform: none;
+  }
+
+  .surfbort-spinner {
+    animation-duration: 2.4s;
+  }
+}

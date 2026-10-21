@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f3b4c"/>
+      <stop offset="0.6" stop-color="#e98b5d"/>
+      <stop offset="1" stop-color="#f6c177"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e6b6b"/>
+      <stop offset="1" stop-color="#06283a"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#sky)"/>
+  <circle cx="392" cy="318" r="92" fill="#ffe2a8"/>
+  <path d="M0 330C80 300 160 360 240 330S400 300 480 330 560 350 600 330V600H0Z" fill="url(#sea)"/>
+  <path d="M0 405C100 375 180 435 300 405S480 375 600 410V600H0Z" fill="#0a4f5c"/>
+  <path d="M0 480C120 450 220 510 330 480S500 455 600 490V600H0Z" fill="#073847"/>
+  <text x="48" y="98" font-family="system-ui, sans-serif" font-size="46" font-weight="800" letter-spacing="7" fill="#fff8ec">SURFBORT</text>
+  <text x="50" y="140" font-family="system-ui, sans-serif" font-size="22" font-weight="600" letter-spacing="5" fill="#fff8ec" fill-opacity="0.8">SUMMER DEMOS</text>
+</svg>

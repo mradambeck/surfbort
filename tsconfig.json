@@ -1,0 +1,24 @@
+{
+  "include": ["src", "test", "playground"],
+  "exclude": ["playground/vite.config.ts"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "paths": {
+      "surfbort": ["./src/index.ts"],
+      "surfbort/styles.css": ["./src/styles.css"]
+    }
+  }
+}
