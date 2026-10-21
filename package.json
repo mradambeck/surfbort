@@ -20,10 +20,17 @@
   "files": [
     "dist"
   ],
+  "bin": {
+    "surfbort": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./peaks": {
+      "types": "./dist/peaks.d.ts",
+      "default": "./dist/peaks.js"
     },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
