@@ -387,6 +387,41 @@ describe("seeking and volume", () => {
     expect(onPause).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["ArrowLeft", 177],
+    ["Home", 0],
+  ])("stays on the track when End is followed at once by %s", async (key, landsAt) => {
+    const onTrackEnd = vi.fn();
+    const { user, ws } = renderReady({ onTrackEnd });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    // The second key arrives before the media has finished the seek to the end.
+    ws.holdSeeks = true;
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard(`{End}{${key}}`);
+
+    act(() => ws.finishSeek());
+    act(() => ws.finishSeek());
+    expect(ws.setTime).toHaveBeenLastCalledWith(landsAt);
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(onTrackEnd).not.toHaveBeenCalled();
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+  });
+
+  it("stays on the track when End is followed at once by a click on the waveform", async () => {
+    const { user, ws } = renderReady();
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    ws.holdSeeks = true;
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard("{End}");
+    act(() => {
+      ws.emit("interaction", 90);
+      ws.finishSeek();
+    });
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+  });
+
   it("plays the track over after stopping at the end", async () => {
     const { user, ws } = renderReady();
     screen.getByRole("slider", { name: "Seek" }).focus();

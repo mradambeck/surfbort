@@ -149,16 +149,30 @@ export class FakeWaveSurfer {
 
   setTime = vi.fn((time: number): void => {
     this.currentTime = time;
+    this.media.ended = false;
     this.emit("timeupdate", time);
     if (this.holdSeeks) this.media.seeking = true;
-    else this.media.dispatchEvent(new Event("seeked"));
-    // Browsers fire `ended` for a seek to the end, playing or not.
-    if (this.duration > 0 && time >= this.duration) this.end();
+    else this.landSeek();
   });
 
+  /** Lands a seek held by holdSeeks. */
   finishSeek(): void {
     this.media.seeking = false;
+    this.landSeek();
+  }
+
+  private landSeek(): void {
+    // Browsers queue `ended` for a seek that lands at the end, playing or not. It still
+    // arrives if a `seeked` listener has started another seek by then.
+    const reachedEnd = this.duration > 0 && this.currentTime >= this.duration;
     this.media.dispatchEvent(new Event("seeked"));
+    if (!reachedEnd) return;
+    this.media.ended = !this.media.seeking;
+    if (this.playing) {
+      this.playing = false;
+      this.emit("pause");
+    }
+    this.emit("finish");
   }
 
   getCurrentTime(): number {

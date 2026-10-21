@@ -87,7 +87,11 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private drawing = false;
   /** The current track's download, when `streaming` is off. */
   private download: AbortController | null = null;
-  /** Set when the listener seeks to the very end, so the `finish` that follows stops there instead of moving on. */
+  /**
+   * Set when the listener seeks to the very end, so the `finish` that follows stops there instead of
+   * moving on. A later seek clears it only once the media lands short of the end, since the `finish`
+   * can arrive after that seek is made.
+   */
   private heldAtEnd = false;
   /** The latest position asked for by seek(), until the media reaches it. */
   private seekTarget: number | null = null;
@@ -316,10 +320,13 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     if (!this.ws || !(duration > 0)) return;
     const time = Math.min(Math.max(seconds, 0), duration);
     this.seekTarget = time;
-    this.heldAtEnd = time >= duration;
     this.time.set(time);
     // Until the track is ready, handleReady hands the position over.
-    if (status !== "ready") return;
+    if (status !== "ready") {
+      this.heldAtEnd = time >= duration;
+      return;
+    }
+    if (time >= duration) this.heldAtEnd = true;
     this.applySeek();
     this.syncPosition();
   };
@@ -556,6 +563,8 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   };
 
   private handleSeeked = (): void => {
+    const ws = this.ws;
+    if (ws && ws.getCurrentTime() < ws.getDuration()) this.heldAtEnd = false;
     if (this.seekTarget === null) return;
     if (this.seekTarget === this.seekInFlight) this.clearSeek();
     else this.applySeek();
@@ -565,8 +574,13 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private handleInteraction = (time: number): void => {
     this.clearSeek();
     // Until the track is ready, handleReady hands the position over.
-    if (this.state.status !== "ready") this.seekTarget = time;
-    this.heldAtEnd = time >= (this.ws?.getDuration() ?? this.state.duration);
+    const atEnd = time >= (this.ws?.getDuration() ?? this.state.duration);
+    if (this.state.status !== "ready") {
+      this.seekTarget = time;
+      this.heldAtEnd = atEnd;
+    } else if (atEnd) {
+      this.heldAtEnd = true;
+    }
     this.time.set(time);
   };
 

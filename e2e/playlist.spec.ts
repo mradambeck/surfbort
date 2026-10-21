@@ -93,6 +93,27 @@ test.describe("with the playground open", () => {
     await expect(player.getByRole("listitem").nth(0)).toHaveAttribute("aria-current", "true");
   });
 
+  for (const [key, landsAt] of [["ArrowLeft", 31], ["Home", 0]] as const) {
+    test(`stays on the track when End is followed at once by ${key}`, async ({ page }) => {
+      const player = await ready(page.getByRole("region", { name: "Summer Demos" }));
+      await player.getByRole("button", { name: "Play", exact: true }).click();
+      await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
+
+      const slider = player.getByRole("slider", { name: "Seek" });
+      await slider.focus();
+      // Both keys in one call, so the second arrives before the media finishes the first seek.
+      await slider.evaluate((el, second) => {
+        for (const key of ["End", second]) el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      }, key);
+
+      await page.waitForTimeout(1000);
+      await expect(player.getByRole("listitem").nth(0)).toHaveAttribute("aria-current", "true");
+      await expect(player.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+      expect(await currentTime(page, "summer")).toBeCloseTo(landsAt, 0);
+      expect(await events(page)).toEqual([]);
+    });
+  }
+
   test("stops at the end when the waveform is dragged past it", async ({ page }) => {
     const player = await ready(page.getByRole("region", { name: "Summer Demos" }));
     await player.getByRole("button", { name: "Play", exact: true }).click();
