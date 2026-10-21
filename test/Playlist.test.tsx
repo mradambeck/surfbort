@@ -334,6 +334,83 @@ describe("seeking and volume", () => {
     expect(ws.setTime).toHaveBeenCalledTimes(1);
   });
 
+  it("stops at the end on End instead of moving on", async () => {
+    const onTrackEnd = vi.fn();
+    const onTrackChange = vi.fn();
+    const onPause = vi.fn();
+    const { user, ws } = renderReady({ onTrackEnd, onTrackChange, onPause });
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+
+    slider.focus();
+    await user.keyboard("{End}");
+    expect(ws.setTime).toHaveBeenLastCalledWith(182);
+    expect(slider).toHaveAttribute("aria-valuenow", "182");
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(onTrackEnd).not.toHaveBeenCalled();
+    expect(onTrackChange).not.toHaveBeenCalled();
+    expect(onPause).toHaveBeenCalledWith(tracks[0], 0);
+  });
+
+  it("stops at the end when the waveform is dragged there", async () => {
+    const onTrackEnd = vi.fn();
+    const { user, ws } = renderReady({ onTrackEnd });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+
+    act(() => {
+      ws.emit("interaction", 182);
+      ws.end();
+    });
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(onTrackEnd).not.toHaveBeenCalled();
+  });
+
+  it("stays stopped at the end after End while the track loads", async () => {
+    const onPlay = vi.fn();
+    const onPause = vi.fn();
+    const { user, ws } = renderReady({ onPlay, onPause });
+    await user.click(screen.getByRole("button", { name: "Play Set Break" }));
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard("{End}");
+    expect(ws.setTime).not.toHaveBeenCalled();
+
+    act(() => ws.finishLoad());
+    expect(ws.setTime).toHaveBeenLastCalledWith(95);
+    expect(ws.play).not.toHaveBeenCalled();
+    expect(rows()[1]).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(onPause).not.toHaveBeenCalled();
+  });
+
+  it("plays the track over after stopping at the end", async () => {
+    const { user, ws } = renderReady();
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard("{End}");
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(ws.setTime).toHaveBeenLastCalledWith(0);
+    expect(ws.play).toHaveBeenCalledTimes(1);
+    expect(rows()[0]).toHaveAttribute("data-playing");
+  });
+
+  it("still moves on when playback reaches the end after a seek back from it", async () => {
+    const onTrackEnd = vi.fn();
+    const { user, ws } = renderReady({ onTrackEnd });
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard("{End}{ArrowLeft}");
+    expect(ws.setTime).toHaveBeenLastCalledWith(177);
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    act(() => ws.end());
+    expect(onTrackEnd).toHaveBeenCalledWith(tracks[0], 0);
+    expect(ws.load).toHaveBeenLastCalledWith("/audio/set-break.mp3", tracks[1]!.peaks, 95);
+  });
+
   it("re-renders the time readout as playback moves", () => {
     const { ws } = renderReady();
     act(() => ws.advance(61.4));
@@ -356,6 +433,156 @@ describe("seeking and volume", () => {
     fireEvent.change(slider, { target: { value: "0.6" } });
     expect(ws.setMuted).toHaveBeenLastCalledWith(false);
     expect(screen.getByRole("button", { name: "Mute" })).toBeInTheDocument();
+  });
+});
+
+describe("preload", () => {
+  it("leaves the audio element's preload alone by default", () => {
+    render(<Playlist title="Summer Demos" tracks={tracks} />);
+    expect(FakeWaveSurfer.latest().media.preload).toBe("");
+  });
+
+  it("sets the audio element's preload", () => {
+    render(<Playlist title="Summer Demos" tracks={tracks} preload="metadata" />);
+    const ws = FakeWaveSurfer.latest();
+    expect(ws.media.preload).toBe("metadata");
+    expect(ws.load).toHaveBeenCalledWith("/audio/low-tide.mp3", undefined, 182);
+  });
+
+  it("calls onInit before loading the first track", () => {
+    const loadsAtInit: number[] = [];
+    render(
+      <Playlist
+        title="Summer Demos"
+        tracks={tracks}
+        onInit={(ws) => loadsAtInit.push((ws as unknown as FakeWaveSurfer).load.mock.calls.length)}
+      />,
+    );
+    expect(loadsAtInit).toEqual([0]);
+    expect(FakeWaveSurfer.latest().load).toHaveBeenCalledTimes(1);
+  });
+
+  it("with none, readies a track with peaks and a duration without holding it back", () => {
+    renderReady({ preload: "none", initialTrack: 1 });
+    const ws = FakeWaveSurfer.latest();
+    expect(ws.load).toHaveBeenCalledWith("/audio/set-break.mp3", tracks[1]!.peaks, 95);
+    expect(ws.media.preload).toBe("none");
+    expect(screen.getByRole("slider", { name: "Seek" })).not.toHaveAttribute("data-loading");
+  });
+
+  it("with none, holds back a track without peaks until it's played", async () => {
+    const { user, ws } = renderReady({ preload: "none" });
+    // Only empty(), which clears the waveform without loading audio.
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(ws.load).toHaveBeenCalledWith("", [[0]], 0.001);
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    expect(slider).not.toHaveAttribute("data-loading");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 3:02");
+    expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute("data-loading");
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(ws.load).toHaveBeenLastCalledWith("/audio/low-tide.mp3", undefined, 182);
+    expect(slider).toHaveAttribute("data-loading");
+    expect(screen.getByRole("button", { name: "Pause" })).toHaveAttribute("data-loading");
+
+    act(() => ws.finishLoad());
+    expect(ws.play).toHaveBeenCalledTimes(1);
+    expect(rows()[0]).toHaveAttribute("data-playing");
+  });
+
+  it("with none, selects tracks while paused without loading them", async () => {
+    const { user, ws } = renderReady({ preload: "none", initialTrack: 1 });
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    expect(rows()[2]).toHaveAttribute("aria-current", "true");
+    expect(ws.load).toHaveBeenLastCalledWith("", [[0]], 0.001);
+
+    // Offshore has no duration, so it needs the metadata that "none" wouldn't fetch.
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(ws.load).toHaveBeenLastCalledWith("/audio/offshore.mp3", undefined, undefined);
+    expect(ws.media.preload).toBe("metadata");
+  });
+
+  it("with none, plays from where the listener seeked before the track loaded", async () => {
+    const { user, ws } = renderReady({ preload: "none" });
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    slider.focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    expect(slider).toHaveAttribute("aria-valuenow", "10");
+    expect(ws.setTime).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    act(() => ws.finishLoad());
+    expect(ws.setTime).toHaveBeenLastCalledWith(10);
+    expect(ws.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads a held-back track once preload stops being none", () => {
+    const { ws, rerender } = renderReady({ preload: "none" });
+    rerender(<Playlist title="Summer Demos" tracks={tracks} preload="auto" />);
+    expect(ws.load).toHaveBeenLastCalledWith("/audio/low-tide.mp3", undefined, 182);
+    expect(ws.media.preload).toBe("auto");
+  });
+});
+
+describe("streaming off", () => {
+  function stubFetch(response: () => Promise<Response> = async () => audioResponse()) {
+    const fetch = vi.fn((_url: string, _init?: RequestInit) => response());
+    vi.stubGlobal("fetch", fetch);
+    return fetch;
+  }
+
+  function audioResponse(status = 200) {
+    return new Response(status === 200 ? new Uint8Array(64) : null, {
+      status,
+      statusText: status === 200 ? "OK" : "Not Found",
+      headers: { "Content-Type": "audio/mpeg", "Content-Length": "64" },
+    });
+  }
+
+  it("draws the peaks, then downloads the track on play and plays it from memory", async () => {
+    const fetch = stubFetch();
+    const { user, ws } = renderReady({ streaming: false, preload: "none", initialTrack: 1 });
+    expect(ws.load).toHaveBeenCalledTimes(1);
+    expect(ws.load).toHaveBeenCalledWith("", tracks[1]!.peaks, 95);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute("data-loading");
+
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(fetch).toHaveBeenCalledWith("/audio/set-break.mp3", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    await waitFor(() => expect(ws.loadBlob).toHaveBeenCalledWith(expect.any(Blob), tracks[1]!.peaks, 95));
+    expect(ws.play).not.toHaveBeenCalled();
+
+    act(() => ws.finishLoad());
+    expect(ws.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("downloads the current track on mount unless preload is none", async () => {
+    const fetch = stubFetch();
+    const ws = (render(<Playlist title="Summer Demos" tracks={tracks} streaming={false} />), FakeWaveSurfer.latest());
+    expect(fetch).toHaveBeenCalledWith("/audio/low-tide.mp3", expect.anything());
+    await waitFor(() => expect(ws.loadBlob).toHaveBeenCalledWith(expect.any(Blob), undefined, 182));
+  });
+
+  it("reports a failed download and retries it on play", async () => {
+    const fetch = stubFetch(async () => audioResponse(404));
+    const onError = vi.fn();
+    render(<Playlist title="Summer Demos" tracks={tracks} streaming={false} onError={onError} />);
+    await waitFor(() => expect(screen.getByText("This track couldn't be loaded.")).toBeInTheDocument());
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("404") }), tracks[0], 0);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Play" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels a download when another track takes over", async () => {
+    const fetch = stubFetch(() => new Promise<Response>(() => {}));
+    const user = userEvent.setup();
+    render(<Playlist title="Summer Demos" tracks={tracks} streaming={false} />);
+    const firstSignal = fetch.mock.calls[0]![1]!.signal!;
+
+    await user.click(screen.getByRole("button", { name: "Play Set Break" }));
+    expect(firstSignal.aborted).toBe(true);
+    expect(fetch).toHaveBeenLastCalledWith("/audio/set-break.mp3", expect.anything());
   });
 });
 

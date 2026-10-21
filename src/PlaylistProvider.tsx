@@ -29,6 +29,8 @@ export function PlaylistProvider({
   exclusive = true,
   mediaSession = true,
   preloadDurations = false,
+  preload,
+  streaming = true,
   seekStep = 5,
   theme = "system",
   waveformOptions,
@@ -47,7 +49,16 @@ export function PlaylistProvider({
   onInit,
 }: PlaylistProviderProps) {
   const [engine] = useState(
-    () => new PlaylistEngine(tracks, initialTrack, { autoAdvance, loop, exclusive, mediaSession, waveformOptions }),
+    () =>
+      new PlaylistEngine(tracks, initialTrack, {
+        autoAdvance,
+        loop,
+        exclusive,
+        mediaSession,
+        preload,
+        streaming,
+        waveformOptions,
+      }),
   );
 
   useIsomorphicLayoutEffect(() => {
@@ -55,8 +66,8 @@ export function PlaylistProvider({
   });
 
   useIsomorphicLayoutEffect(() => {
-    engine.setConfig({ autoAdvance, loop, exclusive, mediaSession, waveformOptions });
-  }, [engine, autoAdvance, loop, exclusive, mediaSession, waveformOptions]);
+    engine.setConfig({ autoAdvance, loop, exclusive, mediaSession, preload, streaming, waveformOptions });
+  }, [engine, autoAdvance, loop, exclusive, mediaSession, preload, streaming, waveformOptions]);
 
   useIsomorphicLayoutEffect(() => {
     engine.setTracks(tracks);

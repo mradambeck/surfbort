@@ -1,30 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
-
-type Handles = Record<string, { current: { getCurrentTime(): number; seek(seconds: number): void } | null }>;
-
-/** A player's playback position, read through the handles the playground exposes. */
-function currentTime(page: Page, player: string): Promise<number> {
-  return page.evaluate(
-    (name) => (window as unknown as { __surfbort?: Handles }).__surfbort?.[name]?.current?.getCurrentTime() ?? -1,
-    player,
-  );
-}
-
-function seek(page: Page, player: string, seconds: number): Promise<void> {
-  return page.evaluate(
-    ([name, to]) => (window as unknown as { __surfbort?: Handles }).__surfbort?.[name]?.current?.seek(to),
-    [player, seconds] as const,
-  );
-}
-
-/** Waits until the player's first track is loaded and drawn, so input isn't dropped. */
-async function ready(player: Locator): Promise<Locator> {
-  // Playwright's CSS engine reaches into wavesurfer's open shadow root.
-  await expect(player.locator("canvas").first()).toBeVisible();
-  await expect(player.getByRole("slider", { name: "Seek" })).not.toHaveAttribute("data-loading");
-  return player;
-}
+import { expect, test } from "@playwright/test";
+import { currentTime, events, ready, seek } from "./helpers";
 
 test("loads without console errors", async ({ page }) => {
   const problems: string[] = [];
@@ -34,7 +10,7 @@ test("loads without console errors", async ({ page }) => {
   page.on("pageerror", (error) => problems.push(error.message));
   // Navigate once and never reload: WebKit reports the fetches a reload cancels as errors.
   await page.goto("/");
-  await expect(page.locator(".surfbort-waveform")).toHaveCount(6);
+  await expect(page.locator(".surfbort-waveform")).toHaveCount(8);
   await expect(page.locator(".surfbort-waveform[data-loading]")).toHaveCount(0);
   await expect(page.locator(".surfbort-waveform canvas").first()).toBeVisible();
   expect(problems).toEqual([]);
@@ -90,8 +66,54 @@ test.describe("with the playground open", () => {
     // Skip to the last second of Low Tide instead of waiting out all 36.
     await seek(page, "summer", 35);
     await expect(player.getByRole("listitem").nth(1)).toHaveAttribute("aria-current", "true", { timeout: 10_000 });
+    expect(await events(page)).toEqual(["trackEnd:Low Tide"]);
     await expect(player.getByRole("button", { name: "Pause Set Break" })).toBeVisible();
     await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
+  });
+
+  test("stops at the end on End instead of moving on", async ({ page }) => {
+    const player = await ready(page.getByRole("region", { name: "Summer Demos" }));
+    await player.getByRole("button", { name: "Play", exact: true }).click();
+    await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
+
+    await player.getByRole("slider", { name: "Seek" }).focus();
+    await page.keyboard.press("End");
+    await expect(player.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(35.9);
+    // Give an auto-advance time to show itself.
+    await page.waitForTimeout(1000);
+    await expect(player.getByRole("listitem").nth(0)).toHaveAttribute("aria-current", "true");
+    expect(await currentTime(page, "summer")).toBeGreaterThan(35.9);
+    expect(await events(page)).toEqual([]);
+
+    // Playing again starts the track over.
+    await player.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(player.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+    await expect.poll(() => currentTime(page, "summer")).toBeLessThan(5);
+    await expect(player.getByRole("listitem").nth(0)).toHaveAttribute("aria-current", "true");
+  });
+
+  test("stops at the end when the waveform is dragged past it", async ({ page }) => {
+    const player = await ready(page.getByRole("region", { name: "Summer Demos" }));
+    await player.getByRole("button", { name: "Play", exact: true }).click();
+    await expect.poll(() => currentTime(page, "summer")).toBeGreaterThan(0.2);
+
+    const box = (await player.getByRole("slider", { name: "Seek" }).boundingBox())!;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    // Past wavesurfer's drag threshold, then on past the edge once that seek lands. A burst of
+    // drag seeks can land out of order in WebKit, which is wavesurfer's to sort out.
+    await page.mouse.move(box.x + box.width / 2 + 10, y);
+    await page.waitForTimeout(300);
+    await page.mouse.move(box.x + box.width + 40, y);
+    await page.mouse.up();
+
+    await expect(player.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await expect(player.getByRole("listitem").nth(0)).toHaveAttribute("aria-current", "true");
+    expect(await currentTime(page, "summer")).toBeGreaterThan(35.9);
+    expect(await events(page)).toEqual([]);
   });
 
   test("pauses the other player when one starts", async ({ page }) => {

@@ -34,6 +34,9 @@ export type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 export type Theme = "system" | "light" | "dark";
 
+/** How much of the current track to fetch before it plays, like `<audio preload>`. */
+export type Preload = "none" | "metadata" | "auto";
+
 export type SlotName =
   | "root"
   | "player"
@@ -136,8 +139,8 @@ export interface PlaylistCallbacks {
   onPlaylistEnd?: () => void;
   onError?: (error: Error, track: Track, index: number) => void;
   /**
-   * Called with each wavesurfer.js instance after it's created, e.g. to register plugins.
-   * React StrictMode creates two in development.
+   * Called with each wavesurfer.js instance after it's created and before it loads the
+   * first track, e.g. to register plugins. React StrictMode creates two in development.
    */
   onInit?: (wavesurfer: WaveSurfer) => void;
 }
@@ -159,6 +162,18 @@ export interface PlaylistProviderProps extends PlaylistCallbacks {
   mediaSession?: boolean;
   /** Fetch metadata for tracks without a `duration` so the list can show every length. @default false */
   preloadDurations?: boolean;
+  /**
+   * Sets the audio element's `preload`. `"none"` also holds back tracks that would download
+   * in full (no `peaks` and `duration`, or `streaming` off) until they're played, so nothing
+   * downloads before play. Unset leaves the browser's default.
+   */
+  preload?: Preload;
+  /**
+   * Tracks with `peaks` and `duration` play straight from their URL, which needs a server that
+   * answers Range requests. `false` downloads each track in full when it loads and plays it from
+   * memory, so seeking works on any host. @default true
+   */
+  streaming?: boolean;
   /** Seconds the arrow keys move the playhead. @default 5 */
   seekStep?: number;
   /** Used to re-read waveform colors when the theme changes. @default "system" */

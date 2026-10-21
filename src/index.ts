@@ -32,6 +32,7 @@ export type {
   PlaylistProps,
   PlaylistProviderProps,
   PlaylistStyles,
+  Preload,
   SlotName,
   Theme,
   Track,

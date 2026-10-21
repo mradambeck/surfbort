@@ -1,6 +1,7 @@
 import WaveSurfer, { type WaveSurferOptions } from "wavesurfer.js";
-import type { ImageSource, LoadStatus, PlaylistCallbacks, Track, WaveformOptions } from "../types";
+import type { ImageSource, LoadStatus, PlaylistCallbacks, Preload, Track, WaveformOptions } from "../types";
 import { COLOR_PROPERTIES, readWaveformColors, type ColorOption } from "../utils/cssColors";
+import { fetchAudio } from "../utils/fetchAudio";
 import { isAbortError, normalizeImage, trackKey } from "../utils/tracks";
 import { joinExclusive, pauseOthers } from "./exclusive";
 import * as mediaSession from "./mediaSession";
@@ -48,6 +49,8 @@ export interface EngineConfig {
   loop: boolean;
   exclusive: boolean;
   mediaSession: boolean;
+  preload?: Preload;
+  streaming: boolean;
   waveformOptions?: WaveformOptions;
 }
 
@@ -77,9 +80,15 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private fallbackContainer: HTMLElement | null = null;
   private teardown: Array<() => void> = [];
   private leaveExclusive: (() => void) | null = null;
-  /** Set while wavesurfer loads a track, so the pause it makes on the old one isn't read as the listener's. */
+  /** Set until wavesurfer holds the current track's audio, so the pause it makes on the old one isn't read as the listener's. */
   private loading = false;
   private loadedSrc: string | null = null;
+  /** Set while wavesurfer holds only a drawing of the current track (its peaks, or nothing), so that load's `ready` isn't read as the track's. */
+  private drawing = false;
+  /** The current track's download, when `streaming` is off. */
+  private download: AbortController | null = null;
+  /** Set when the listener seeks to the very end, so the `finish` that follows stops there instead of moving on. */
+  private heldAtEnd = false;
   /** The latest position asked for by seek(), until the media reaches it. */
   private seekTarget: number | null = null;
   /** The target last handed to the media. */
@@ -132,6 +141,9 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
       this.leaveExclusive = config.exclusive ? joinExclusive(this) : null;
     }
     if (previous.mediaSession && !config.mediaSession) mediaSession.release(this);
+    // A track held back by preload="none" may not need to wait any more.
+    const loadingChanged = config.preload !== previous.preload || config.streaming !== previous.streaming;
+    if (this.ws && loadingChanged && this.state.status === "idle") this.loadTrack();
     if (this.ws && config.waveformOptions !== previous.waveformOptions) {
       const changed = changedOptions(previous.waveformOptions, config.waveformOptions);
       if (!Object.keys(changed).length) return;
@@ -149,7 +161,10 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     if (!tracks.length) {
       this.loading = false;
       this.loadedSrc = null;
+      this.drawing = false;
+      this.heldAtEnd = false;
       this.clearSeek();
+      this.cancelDownload();
       this.ws?.pause();
       this.ws?.empty();
       this.time.set(0);
@@ -220,10 +235,12 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     this.leaveExclusive?.();
     this.leaveExclusive = null;
     mediaSession.release(this);
+    this.cancelDownload();
     this.ws?.destroy();
     this.ws = null;
     this.loading = false;
     this.loadedSrc = null;
+    this.drawing = false;
     // Keep the selection in case this is StrictMode remounting. Playback ends with the instance.
     if (this.state.isPlaying || this.state.status !== "idle") this.update({ isPlaying: false, status: "idle" });
   }
@@ -253,8 +270,16 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   play = (): void => {
     if (!this.currentTrack()) return;
     if (!this.state.isPlaying) this.update({ isPlaying: true });
-    if (this.state.status === "ready") this.startPlayback();
-    else if (this.state.status === "error") this.loadCurrent();
+    // Playing from where a seek to the end stopped starts the track over.
+    if (this.heldAtEnd) {
+      this.heldAtEnd = false;
+      this.seek(0);
+    }
+    const { status } = this.state;
+    if (status === "ready") this.startPlayback();
+    else if (status === "error") this.loadCurrent();
+    // Held back by preload="none" until now. Any seek made meanwhile carries over.
+    else if (status === "idle") this.loadTrack();
     // Otherwise the track is still loading, and handleReady starts it.
   };
 
@@ -287,11 +312,14 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   };
 
   seek = (seconds: number): void => {
-    const { duration } = this.state;
+    const { duration, status } = this.state;
     if (!this.ws || !(duration > 0)) return;
     const time = Math.min(Math.max(seconds, 0), duration);
     this.seekTarget = time;
+    this.heldAtEnd = time >= duration;
     this.time.set(time);
+    // Until the track is ready, handleReady hands the position over.
+    if (status !== "ready") return;
     this.applySeek();
     this.syncPosition();
   };
@@ -406,14 +434,29 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     this.seekInFlight = null;
   }
 
+  /** Loads the current track from the start. */
   private loadCurrent(): void {
+    this.clearSeek();
+    this.heldAtEnd = false;
+    this.time.set(0);
+    this.loadTrack();
+  }
+
+  /**
+   * Hands the current track to wavesurfer. With preload="none", a track that would download
+   * before it can play is held back until play(), and wavesurfer shows only its peaks (or
+   * nothing) meanwhile.
+   */
+  private loadTrack(): void {
     const track = this.currentTrack();
     if (!track) return;
-    this.clearSeek();
-    this.time.set(0);
+    const { preload, streaming } = this.config;
+    // With peaks and a duration, wavesurfer draws a track without fetching it.
+    const drawable = Boolean(track.peaks?.length && track.duration);
+    const holdBack = preload === "none" && !this.state.isPlaying && !(streaming && drawable);
     this.loadProgress.set(0);
     this.update({
-      status: "loading",
+      status: holdBack ? "idle" : "loading",
       error: null,
       duration: track.duration ?? this.knownDurations.get(trackKey(track)) ?? 0,
     });
@@ -421,12 +464,56 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     const ws = this.ws;
     // Before mount there's no instance yet. mount() loads the current track.
     if (!ws) return;
+    this.cancelDownload();
     this.loading = true;
     this.loadedSrc = track.src;
-    ws.load(track.src, track.peaks, track.duration).catch(() => {
-      // A superseded load rejects with AbortError, which is routine. Real failures
-      // also arrive through the `error` event, where handleError reports them.
-    });
+    if (holdBack || !streaming) {
+      this.drawing = true;
+      if (drawable) ws.load("", track.peaks, track.duration).catch(ignoreLoadRejection);
+      else ws.empty();
+    }
+    if (holdBack) return;
+    this.setPreloadHint(ws, track);
+    if (streaming) {
+      this.drawing = false;
+      ws.load(track.src, track.peaks, track.duration).catch(ignoreLoadRejection);
+    } else {
+      this.downloadTrack(ws, track);
+    }
+  }
+
+  /** With `streaming` off: fetches the whole file, then plays it from memory. */
+  private downloadTrack(ws: WaveSurfer, track: Track): void {
+    const download = new AbortController();
+    this.download = download;
+    const init = { ...this.config.waveformOptions?.fetchParams, signal: download.signal };
+    fetchAudio(track.src, init, (percent) => this.loadProgress.set(percent)).then(
+      (blob) => {
+        if (this.download !== download) return;
+        this.download = null;
+        this.drawing = false;
+        ws.loadBlob(blob, track.peaks, track.duration).catch(ignoreLoadRejection);
+      },
+      (error: unknown) => {
+        // A newer track or unmounting cancelled it.
+        if (this.download !== download) return;
+        this.download = null;
+        this.handleError(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  }
+
+  private cancelDownload(): void {
+    this.download?.abort();
+    this.download = null;
+  }
+
+  /** Without a duration, wavesurfer waits for the metadata, which preload="none" never fetches. */
+  private setPreloadHint(ws: WaveSurfer, track: Track): void {
+    const media = ws.getMediaElement();
+    const { preload } = this.config;
+    if (!media || !preload) return;
+    media.preload = preload === "none" && !track.duration ? "metadata" : preload;
   }
 
   private startPlayback(): void {
@@ -442,13 +529,22 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
 
   private handleReady = (duration: number): void => {
     const track = this.currentTrack();
-    // wavesurfer's empty() loads silence, which needs no handling.
-    if (!track) return;
+    // wavesurfer's empty() and drawings of a track's peaks load no audio, so they need no handling.
+    if (!track || this.drawing) return;
     this.loading = false;
     this.loadProgress.set(100);
     if (Number.isFinite(duration) && duration > 0) this.knownDurations.set(trackKey(track), duration);
-    this.update({ status: "ready", duration, error: null, durations: this.durationsFor(this.state.tracks) });
+    this.update({
+      status: "ready",
+      duration,
+      error: null,
+      durations: this.durationsFor(this.state.tracks),
+      // A seek to the very end while the track loaded leaves nothing to play.
+      isPlaying: this.state.isPlaying && !this.heldAtEnd,
+    });
     this.refreshColors();
+    // A seek made while the track loaded.
+    this.applySeek();
     this.syncPosition();
     if (this.state.isPlaying) this.startPlayback();
   };
@@ -468,6 +564,9 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   /** A click or drag on the waveform wins over any keyboard seek still in progress. */
   private handleInteraction = (time: number): void => {
     this.clearSeek();
+    // Until the track is ready, handleReady hands the position over.
+    if (this.state.status !== "ready") this.seekTarget = time;
+    this.heldAtEnd = time >= (this.ws?.getDuration() ?? this.state.duration);
     this.time.set(time);
   };
 
@@ -499,6 +598,14 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private handleFinish = (): void => {
     const { index, tracks } = this.state;
     const track = tracks[index];
+    // A seek to the very end stops there. Only playback reaching the end moves on.
+    if (this.heldAtEnd) {
+      mediaSession.setPlaybackState(this, "paused");
+      if (!this.state.isPlaying) return;
+      this.update({ isPlaying: false });
+      if (track) this.callbacks.onPause?.(track, index);
+      return;
+    }
     if (track) this.callbacks.onTrackEnd?.(track, index);
     const nextIndex = this.nextIndex();
     if (this.config.autoAdvance && nextIndex !== null) {
@@ -561,6 +668,12 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     return this.fallbackContainer;
   }
 }
+
+/**
+ * A superseded load rejects with AbortError, which is routine. Real failures also arrive
+ * through the `error` event, where handleError reports them.
+ */
+function ignoreLoadRejection(): void {}
 
 function changedOptions(previous: WaveformOptions = {}, next: WaveformOptions = {}): Partial<WaveSurferOptions> {
   const changed: Record<string, unknown> = {};

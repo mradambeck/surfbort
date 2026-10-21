@@ -5,6 +5,7 @@ type Listener = (...args: never[]) => void;
 
 interface PendingLoad {
   url: string;
+  blob: Blob | undefined;
   peaks: unknown;
   duration: number | undefined;
   resolve: () => void;
@@ -47,7 +48,7 @@ export class FakeWaveSurfer {
   currentTime = 0;
   duration = 0;
   readonly loads: PendingLoad[] = [];
-  readonly media = Object.assign(new EventTarget(), { ended: false, seeking: false });
+  readonly media = Object.assign(new EventTarget(), { ended: false, seeking: false, preload: "" });
   /** When set, the next play() call rejects with this error instead of playing. */
   refuseNextPlay: Error | null = null;
   /** When true, seeks stay in progress until finishSeek(), like a real media element. */
@@ -73,7 +74,15 @@ export class FakeWaveSurfer {
     for (const listener of [...(this.listeners.get(event) ?? [])]) (listener as (...a: unknown[]) => void)(...args);
   }
 
-  load = vi.fn((url: string, peaks?: unknown, duration?: number): Promise<void> => {
+  load = vi.fn((url: string, peaks?: unknown, duration?: number): Promise<void> =>
+    this.startLoad(url, undefined, peaks, duration),
+  );
+
+  loadBlob = vi.fn((blob: Blob, peaks?: unknown, duration?: number): Promise<void> =>
+    this.startLoad("", blob, peaks, duration),
+  );
+
+  private startLoad(url: string, blob: Blob | undefined, peaks: unknown, duration: number | undefined): Promise<void> {
     if (this.destroyed) return Promise.reject(new Error("Cannot load audio: wavesurfer was destroyed."));
     const previous = this.pendingLoad();
     if (previous) {
@@ -88,9 +97,9 @@ export class FakeWaveSurfer {
     this.currentTime = 0;
     this.media.ended = false;
     return new Promise<void>((resolve, reject) => {
-      this.loads.push({ url, peaks, duration, resolve, reject, settled: false });
+      this.loads.push({ url, blob, peaks, duration, resolve, reject, settled: false });
     });
-  });
+  }
 
   pendingLoad(): PendingLoad | undefined {
     const last = this.loads.at(-1);
@@ -143,6 +152,8 @@ export class FakeWaveSurfer {
     this.emit("timeupdate", time);
     if (this.holdSeeks) this.media.seeking = true;
     else this.media.dispatchEvent(new Event("seeked"));
+    // Browsers fire `ended` for a seek to the end, playing or not.
+    if (this.duration > 0 && time >= this.duration) this.end();
   });
 
   finishSeek(): void {
@@ -164,7 +175,10 @@ export class FakeWaveSurfer {
 
   setVolume = vi.fn();
   setMuted = vi.fn();
-  empty = vi.fn();
+  /** Like wavesurfer's, a load of near-silent peaks with no audio, which also emits ready. */
+  empty = vi.fn((): void => {
+    this.load("", [[0]], 0.001).catch(() => {});
+  });
 
   setOptions = vi.fn((options: Partial<WaveSurferOptions>): void => {
     Object.assign(this.options, options);
@@ -185,9 +199,11 @@ export class FakeWaveSurfer {
   /** Plays to the end: the media pauses with `ended` set, then wavesurfer emits finish. */
   end(): void {
     this.currentTime = this.duration;
-    this.playing = false;
     this.media.ended = true;
-    this.emit("pause");
+    if (this.playing) {
+      this.playing = false;
+      this.emit("pause");
+    }
     this.emit("timeupdate", this.duration);
     this.emit("finish");
   }
