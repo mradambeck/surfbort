@@ -1,6 +1,6 @@
 {
   "name": "surfbort",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A React audio playlist player with a scrubbable waveform, built on wavesurfer.js",
   "keywords": [
     "react",
