@@ -81,11 +81,36 @@ export function Album() {
 | `theme` | `"system"` | `"light"` or `"dark"` ignore the OS setting. |
 | `artworkPosition` | `"left"` | `"right"` puts the art on the other side. |
 | `controls` | all `true` | `{ previous, next, time, volume }` toggles optional controls in the default layout. |
+| `maxHeight` | | Caps the player's height; a number is pixels, a string any CSS length. See [Long playlists](#long-playlists). |
 | `className`, `style` | | Applied to the root. |
 | `classNames`, `styles` | | Per-slot class names and inline styles. See [Slots](#slots). |
 | `icons` | | Replace any of `play`, `pause`, `previous`, `next`, `volume`, `muted`, `loading`. |
 | `labels` | | Every visible and spoken string, for translation. Track labels are functions, e.g. `playTrack: (track) => \`Play ${track.title}\``. |
 | `waveformOptions` | | Passed to wavesurfer.js (bar width, gap, radius, colors, `normalize`, `plugins`, `fetchParams`, and so on). Changes apply live, except `plugins`, which are read when the instance is created. |
+
+### Long playlists
+
+`maxHeight` keeps a long playlist from taking over the page:
+
+```tsx
+<Playlist title="Summer Demos" tracks={tracks} maxHeight={560} />
+```
+
+A player that would grow taller than this keeps its header and transport in place, and only the track list scrolls. A player with fewer tracks keeps its natural height. When the current track changes from outside the list (the skip buttons, auto-advance, media keys or the imperative handle), the list scrolls just far enough to show it, smoothly unless the visitor prefers reduced motion. Only the list scrolls, never the page. Nothing scrolls on the first render or when a track is picked from the list.
+
+If the header and transport alone are taller than `maxHeight`, as in a narrow player with the artwork stacked on top, the list keeps about a row and a half of height and the whole player scrolls as well. To cap only wide players, pass a variable and set it in a media query:
+
+```tsx
+<Playlist className="long-set" tracks={tracks} maxHeight="var(--long-set-max-height, none)" />
+```
+
+```css
+@media (min-width: 700px) {
+  .long-set {
+    --long-set-max-height: 560px;
+  }
+}
+```
 
 ### Callbacks
 
@@ -144,7 +169,7 @@ Every element has a `surfbort-*` class, and state is exposed as data attributes:
 
 | Element | Attributes |
 | --- | --- |
-| `.surfbort` (root) | `data-theme`, `data-artwork-position` |
+| `.surfbort` (root) | `data-theme`, `data-artwork-position`, `data-max-height` (when `maxHeight` is set) |
 | `.surfbort-panel` | `data-has-background` |
 | `.surfbort-track` | `data-active` (current track), `data-playing`, `data-loading`, `data-error` |
 | `.surfbort-play-button` | `data-playing`, `data-loading` |
@@ -245,6 +270,7 @@ Audio keeps working in layouts without a `<Waveform>`, and the waveform moves to
 - The waveform is a slider with spoken values ("1:05 of 3:20"). Arrow keys move by `seekStep`, Page Up/Down by a tenth of the track, and Home/End jump to the ends. End stops playback at the end of the current track rather than moving on to the next one, and pressing play from there starts the track over.
 - The track list is an ordered list, and the current track is marked `aria-current`. Each row has one button, stretched over the whole row, so it's a single tab stop and a click anywhere on the row works.
 - Because the button covers the row, the focus ring is drawn on the row (`.surfbort-track`, through `:has(:focus-visible)`) and not on the focused button. A host-site test that checks the focused element's outline should check the row instead. Browsers without `:has()` outline the button.
+- With `maxHeight`, the scrolling track list holds the track buttons, so keyboard users can reach it and focusing a row scrolls it into view. The list scrolls without animation for visitors who prefer reduced motion.
 - Every control is a native button or range input with a label from `labels`.
 - Animated backgrounds swap to `stillSrc` for visitors who prefer reduced motion.
 - The volume slider hides itself where the browser ignores volume changes (iOS Safari), and mute stays.

@@ -621,6 +621,94 @@ describe("streaming off", () => {
   });
 });
 
+describe("max height", () => {
+  /**
+   * Gives the track list the layout jsdom lacks: 100px tall, scrolled to `scrollTop`, with
+   * 52px rows every 60px. scrollTo jumps straight to its target.
+   */
+  function layOutList() {
+    const list = screen.getByRole("list", { name: "Tracks" });
+    let scrollTop = 0;
+    Object.defineProperty(list, "clientHeight", { value: 100 });
+    Object.defineProperty(list, "scrollHeight", { value: 60 * list.children.length });
+    Object.defineProperty(list, "scrollTop", { get: () => scrollTop });
+    list.getBoundingClientRect = () => new DOMRect(0, 0, 300, 100);
+    Array.from(list.children).forEach((row, index) => {
+      row.getBoundingClientRect = () => new DOMRect(0, index * 60 - scrollTop, 300, 52);
+    });
+    const scrollTo = vi.fn((options: ScrollToOptions) => {
+      scrollTop = options.top ?? scrollTop;
+    });
+    list.scrollTo = scrollTo as typeof list.scrollTo;
+    return scrollTo;
+  }
+
+  it("caps the player's height", () => {
+    const { rerender } = render(<Playlist title="Summer Demos" tracks={tracks} maxHeight={559} style={{ width: 400 }} />);
+    const root = screen.getByRole("region", { name: "Summer Demos" });
+    expect(root).toHaveStyle({ maxHeight: "559px", width: "400px" });
+    expect(root).toHaveAttribute("data-max-height");
+
+    rerender(<Playlist title="Summer Demos" tracks={tracks} />);
+    expect(root.style.maxHeight).toBe("");
+    expect(root).not.toHaveAttribute("data-max-height");
+  });
+
+  it("scrolls the list to a track picked with the skip buttons", async () => {
+    const { user, ws } = renderReady({ maxHeight: 300 });
+    const scrollTo = layOutList();
+
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 12, behavior: "smooth" });
+    act(() => ws.finishLoad());
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 72, behavior: "smooth" });
+
+    // Set Break, the row above, is partly scrolled off the top.
+    act(() => ws.finishLoad());
+    await user.click(screen.getByRole("button", { name: "Previous track" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 60, behavior: "smooth" });
+  });
+
+  it("leaves the list alone when the track is already in view", async () => {
+    const { user } = renderReady({ maxHeight: 300, initialTrack: 1 });
+    const scrollTo = layOutList();
+    await user.click(screen.getByRole("button", { name: "Previous track" }));
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("scrolls to the next track when one ends", async () => {
+    const { user, ws } = renderReady({ maxHeight: 300 });
+    const scrollTo = layOutList();
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    act(() => ws.end());
+    expect(rows()[1]).toHaveAttribute("aria-current", "true");
+    expect(scrollTo).toHaveBeenCalledWith({ top: 12, behavior: "smooth" });
+  });
+
+  it("doesn't scroll on the first render or for a track picked from the list", async () => {
+    const { user } = renderReady({ maxHeight: 300, initialTrack: 2 });
+    const scrollTo = layOutList();
+    await user.click(screen.getByRole("button", { name: "Play Low Tide" }));
+    await user.click(screen.getByRole("button", { name: "Play Set Break" }));
+    expect(rows()[1]).toHaveAttribute("aria-current", "true");
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("jumps instead of gliding under reduced motion", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { user } = renderReady({ maxHeight: 300 });
+    const scrollTo = layOutList();
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 12, behavior: "auto" });
+  });
+});
+
 describe("integration", () => {
   it("pauses other players when one starts", async () => {
     const user = userEvent.setup();

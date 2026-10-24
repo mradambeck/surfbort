@@ -143,6 +143,27 @@
   box-sizing: border-box;
 }
 
+/*
+ * With maxHeight, the track list takes whatever height is left and scrolls. The root scrolls too,
+ * but only once the player alone would overflow it, like a narrow player with stacked artwork.
+ */
+.surfbort[data-max-height] {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.surfbort[data-max-height] > .surfbort-player {
+  flex: none;
+}
+
+.surfbort[data-max-height] > .surfbort-tracklist {
+  flex: 1 1 auto;
+  /* About a row and a half, so it's clear the list goes on. */
+  min-height: 80px;
+  overflow-y: auto;
+}
+
 /* Player: artwork beside the panel */
 
 .surfbort-player {

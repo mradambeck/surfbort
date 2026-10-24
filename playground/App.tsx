@@ -52,6 +52,15 @@ const summerTracks: Track[] = [
   { src: demo("duck-dive"), title: "Duck Dive", artist: "Surfbort" },
 ];
 
+const longTracks: Track[] = [
+  ...summerTracks,
+  ...summerTracks.map((track) => ({
+    ...track,
+    id: `${track.src}#reprise`,
+    title: `${track.title} (Reprise)`,
+  })),
+];
+
 const artTracks: Track[] = [
   {
     src: demo("set-break"),
@@ -134,6 +143,7 @@ export function App() {
   const darkRef = useRef<PlaylistHandle>(null);
   const sunsetRef = useRef<PlaylistHandle>(null);
   const pocketRef = useRef<PlaylistHandle>(null);
+  const cappedRef = useRef<PlaylistHandle>(null);
   const partsRef = useRef<PlaylistHandle>(null);
   const lazyRef = useRef<PlaylistHandle>(null);
   const noRangeRef = useRef<PlaylistHandle>(null);
@@ -144,6 +154,7 @@ export function App() {
       dark: darkRef,
       sunset: sunsetRef,
       pocket: pocketRef,
+      capped: cappedRef,
       parts: partsRef,
       lazy: lazyRef,
       noRange: noRangeRef,
@@ -239,6 +250,22 @@ export function App() {
             tracks={summerTracks}
           />
         </div>
+      </Demo>
+
+      <Demo
+        id="capped"
+        title="Capped height"
+        description="maxHeight={460}. The header and transport stay put and the track list scrolls. The skip buttons scroll the current track into view."
+      >
+        <Playlist
+          ref={cappedRef}
+          title="Long Set"
+          titleAs="h3"
+          artwork="/art/cover.svg"
+          preload="none"
+          maxHeight={460}
+          tracks={longTracks}
+        />
       </Demo>
 
       <Demo

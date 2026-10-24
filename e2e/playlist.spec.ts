@@ -10,7 +10,7 @@ test("loads without console errors", async ({ page }) => {
   page.on("pageerror", (error) => problems.push(error.message));
   // Navigate once and never reload: WebKit reports the fetches a reload cancels as errors.
   await page.goto("/");
-  await expect(page.locator(".surfbort-waveform")).toHaveCount(8);
+  await expect(page.locator(".surfbort-waveform")).toHaveCount(9);
   await expect(page.locator(".surfbort-waveform[data-loading]")).toHaveCount(0);
   await expect(page.locator(".surfbort-waveform canvas").first()).toBeVisible();
   expect(problems).toEqual([]);
@@ -156,6 +156,22 @@ test.describe("with the playground open", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     await expect.poll(() => background.evaluate((img: HTMLImageElement) => img.currentSrc)).toContain("waves-still.png");
+  });
+
+  test("scrolls a capped player's track list to the current track", async ({ page }) => {
+    const player = page.getByRole("region", { name: "Long Set" });
+    const list = player.getByRole("list", { name: "Tracks" });
+    await player.scrollIntoViewIfNeeded();
+    expect((await player.boundingBox())!.height).toBeLessThanOrEqual(460);
+    expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    const pageScroll = await page.evaluate(() => window.scrollY);
+    const next = player.getByRole("button", { name: "Next track" });
+    for (let i = 0; i < 7; i++) await next.click();
+    await expect(player.getByRole("listitem").nth(7)).toHaveAttribute("aria-current", "true");
+    await expect.poll(() => list.evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1)).toBe(true);
+    await expect(player.getByRole("listitem").nth(7)).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
   });
 
   for (const colorScheme of ["light", "dark"] as const) {

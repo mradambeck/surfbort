@@ -194,6 +194,12 @@ export interface PlaylistProps extends Omit<PlaylistProviderProps, "handleRef"> 
   artworkPosition?: "left" | "right";
   /** Which optional controls the default layout shows. All default to true. */
   controls?: PlaylistControls;
+  /**
+   * Caps the player's height; a number means pixels. A player that would grow past it keeps
+   * the header and transport in place and scrolls the track list. Shorter players keep their
+   * natural height.
+   */
+  maxHeight?: number | string;
   className?: string;
   style?: CSSProperties;
   /** Replaces the default layout, inside the themed root. */
