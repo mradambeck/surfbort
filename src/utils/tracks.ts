@@ -8,7 +8,7 @@ export function normalizeImage(image: ImageSource): { src: string; alt: string }
   return typeof image === "string" ? { src: image, alt: "" } : { src: image.src, alt: image.alt ?? "" };
 }
 
-export function normalizeBackground(background: BackgroundSource): { src: string; stillSrc?: string } {
+export function normalizeBackground(background: BackgroundSource): Exclude<BackgroundSource, string> {
   return typeof background === "string" ? { src: background } : background;
 }
 

@@ -621,6 +621,65 @@ describe("streaming off", () => {
   });
 });
 
+describe("background that animates while playing", () => {
+  const background = { src: "/waves.gif", stillSrc: "/waves.png", animate: "playing" } as const;
+  const images = () => Array.from(document.querySelectorAll<HTMLImageElement>(".surfbort-background img"));
+  const animation = () => document.querySelector<HTMLImageElement>(".surfbort-background-animation");
+
+  it("shows the still and fetches nothing else until the first play", () => {
+    renderReady({ background });
+    expect(images().map((img) => img.getAttribute("src"))).toEqual(["/waves.png"]);
+    expect(document.querySelector(".surfbort-panel")).toHaveAttribute("data-has-background");
+  });
+
+  it("keeps the still up until the animation loads, and hides the animation while paused", async () => {
+    const { user } = renderReady({ background });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(animation()).toHaveAttribute("src", "/waves.gif");
+    expect(animation()).not.toBeVisible();
+
+    fireEvent.load(animation()!);
+    expect(animation()).toBeVisible();
+    expect(document.querySelector(".surfbort-background")).toHaveAttribute("data-animating");
+
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    expect(animation()).not.toBeVisible();
+    expect(images()[0]).toHaveAttribute("src", "/waves.png");
+    expect(document.querySelector(".surfbort-background")).not.toHaveAttribute("data-animating");
+  });
+
+  it("never fetches the animation under reduced motion", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { user } = renderReady({ background });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    expect(animation()).toBeNull();
+  });
+
+  it("works the same for a track's own background", async () => {
+    const own = { src: "/set-break.gif", stillSrc: "/set-break.png", animate: "playing" } as const;
+    const { user, ws } = renderReady({ background, tracks: [tracks[0]!, { ...tracks[1]!, background: own }] });
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.load(animation()!);
+
+    await user.click(screen.getByRole("button", { name: "Play Set Break" }));
+    expect(images()[0]).toHaveAttribute("src", "/set-break.png");
+    expect(animation()).toHaveAttribute("src", "/set-break.gif");
+    expect(animation()).not.toBeVisible();
+    act(() => ws.finishLoad());
+    fireEvent.load(animation()!);
+    expect(animation()).toBeVisible();
+  });
+
+  it("animates all the time without a still", () => {
+    renderReady({ background: { src: "/waves.gif", animate: "playing" } });
+    expect(images().map((img) => img.getAttribute("src"))).toEqual(["/waves.gif"]);
+  });
+});
+
 describe("max height", () => {
   /**
    * Gives the track list the layout jsdom lacks: 100px tall, scrolled to `scrollTop`, with

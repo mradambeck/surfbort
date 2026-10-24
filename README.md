@@ -46,7 +46,7 @@ export function Album() {
 | `duration` | `number` | Seconds. Shown in the list before the track loads. |
 | `peaks` | `number[][]` | Precomputed waveform peaks, one array per channel. See [Large files](#large-files) and [Generating peaks](#generating-peaks). |
 | `artwork` | `string \| { src, alt }` | Replaces the playlist artwork while this track is current. |
-| `background` | `string \| { src, stillSrc }` | Replaces the playlist background while this track is current. |
+| `background` | `string \| { src, stillSrc, animate }` | Replaces the playlist background while this track is current. |
 
 ## Props
 
@@ -58,7 +58,7 @@ export function Album() {
 | `title` | | Playlist title, a string or any React node. A string also names the player's region and the album in OS media controls. |
 | `titleAs` | `"h2"` | Element for the title: `h1`–`h6`, `p` or `div`. |
 | `artwork` | | Square art beside the player. `alt` defaults to `""` because the titles sit next to it. |
-| `background` | | Image or animated GIF behind the player. `stillSrc` is shown instead to visitors who prefer reduced motion. |
+| `background` | | Image or animated GIF behind the player. `stillSrc` is shown instead to visitors who prefer reduced motion. See [Backgrounds](#backgrounds). |
 
 ### Behavior
 
@@ -87,6 +87,21 @@ export function Album() {
 | `icons` | | Replace any of `play`, `pause`, `previous`, `next`, `volume`, `muted`, `loading`. |
 | `labels` | | Every visible and spoken string, for translation. Track labels are functions, e.g. `playTrack: (track) => \`Play ${track.title}\``. |
 | `waveformOptions` | | Passed to wavesurfer.js (bar width, gap, radius, colors, `normalize`, `plugins`, `fetchParams`, and so on). Changes apply live, except `plugins`, which are read when the instance is created. |
+
+### Backgrounds
+
+`background` sits behind the title, transport and waveform. Text over it switches to the `--surfbort-on-image-*` colors, over a scrim, to stay readable.
+
+A string is shown as is. The object form adds a still for visitors who prefer reduced motion, and `animate: "playing"` shows that still the rest of the time too, animating only during playback:
+
+```tsx
+<Playlist
+  tracks={tracks}
+  background={{ src: "/img/waves.gif", stillSrc: "/img/waves.png", animate: "playing" }}
+/>
+```
+
+With `animate: "playing"`, the GIF isn't fetched until the first play, which helps when it's large. The still stays up until the GIF has loaded, then the GIF covers it while playing and hides again on pause. A track's own `background` works the same way, and the GIF for each track is fetched the first time it plays. Without `stillSrc`, `animate: "playing"` has nothing to show while paused, so it animates all the time. The default, `animate: "always"`, shows `src` whenever motion is allowed.
 
 ### Long playlists
 
@@ -171,6 +186,7 @@ Every element has a `surfbort-*` class, and state is exposed as data attributes:
 | --- | --- |
 | `.surfbort` (root) | `data-theme`, `data-artwork-position`, `data-max-height` (when `maxHeight` is set) |
 | `.surfbort-panel` | `data-has-background` |
+| `.surfbort-background` | `data-animating` (with `animate: "playing"`, while the animation shows) |
 | `.surfbort-track` | `data-active` (current track), `data-playing`, `data-loading`, `data-error` |
 | `.surfbort-play-button` | `data-playing`, `data-loading` |
 | `.surfbort-waveform` | `data-loading` |
@@ -272,7 +288,7 @@ Audio keeps working in layouts without a `<Waveform>`, and the waveform moves to
 - Because the button covers the row, the focus ring is drawn on the row (`.surfbort-track`, through `:has(:focus-visible)`) and not on the focused button. A host-site test that checks the focused element's outline should check the row instead. Browsers without `:has()` outline the button.
 - With `maxHeight`, the scrolling track list holds the track buttons, so keyboard users can reach it and focusing a row scrolls it into view. The list scrolls without animation for visitors who prefer reduced motion.
 - Every control is a native button or range input with a label from `labels`.
-- Animated backgrounds swap to `stillSrc` for visitors who prefer reduced motion.
+- Animated backgrounds swap to `stillSrc` for visitors who prefer reduced motion. With `animate: "playing"`, the animation isn't even fetched for them.
 - The volume slider hides itself where the browser ignores volume changes (iOS Safari), and mute stays.
 
 ## Large files

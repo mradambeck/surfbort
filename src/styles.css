@@ -239,6 +239,16 @@
   object-fit: cover;
 }
 
+/* animate: "playing" stacks the animation over the still. */
+.surfbort-background .surfbort-background-animation {
+  position: absolute;
+  inset: 0;
+}
+
+.surfbort-background .surfbort-background-animation[hidden] {
+  display: none;
+}
+
 .surfbort-background::after {
   content: "";
   position: absolute;

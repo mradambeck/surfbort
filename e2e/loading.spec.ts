@@ -67,6 +67,26 @@ test.describe('preload="none"', () => {
     expect(new Set(audio.map((request) => request.path))).toEqual(new Set(["/demo/set-break.wav"]));
   });
 
+  test("shows the still background until play, then fetches and plays the GIF", async ({ page }) => {
+    const gifs: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.endsWith(".gif")) gifs.push(request.url());
+    });
+    await page.goto("/?demo=lazy");
+    const player = page.getByRole("region", { name: "Night Swim" });
+    const animation = player.locator(".surfbort-background-animation");
+    await expect(player.locator(".surfbort-background img").first()).toHaveAttribute("src", "/demo/waves-still.png");
+    await settle(page);
+    expect(gifs).toEqual([]);
+
+    await player.getByRole("button", { name: "Play Set Break" }).click();
+    await expect(animation).toBeVisible();
+    expect(gifs).toHaveLength(1);
+
+    await player.getByRole("button", { name: "Pause Set Break" }).click();
+    await expect(animation).toBeHidden();
+  });
+
   test("downloads a track without peaks when it's played, without shifting the layout", async ({ page }) => {
     const audio = recordAudio(page);
     await page.goto("/?demo=lazy");

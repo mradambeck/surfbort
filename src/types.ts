@@ -9,7 +9,17 @@ export type ImageSource = string | { src: string; alt?: string };
  * A static image or animated GIF. `stillSrc` replaces it for visitors who set
  * `prefers-reduced-motion: reduce`.
  */
-export type BackgroundSource = string | { src: string; stillSrc?: string };
+export type BackgroundSource =
+  | string
+  | {
+      src: string;
+      stillSrc?: string;
+      /**
+       * `"playing"` shows `stillSrc` until playback starts and while it's paused, and fetches
+       * `src` only on the first play. Needs `stillSrc`. @default "always"
+       */
+      animate?: "always" | "playing";
+    };
 
 export interface Track {
   src: string;

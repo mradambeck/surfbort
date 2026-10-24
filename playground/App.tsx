@@ -306,7 +306,7 @@ export function App() {
       <Demo
         id="lazy"
         title="Nothing loads until play"
-        description='preload="none". Set Break has peaks, so its waveform draws right away. Low Tide and Offshore have none, so they download when played, and their waveform stays empty until then.'
+        description='preload="none". Set Break has peaks, so its waveform draws right away. Low Tide and Offshore have none, so they download when played, and their waveform stays empty until then. The background is a still until the first play fetches its GIF, and it animates only while playing.'
       >
         {lazy ? (
           <Playlist
@@ -315,6 +315,11 @@ export function App() {
             titleAs="h3"
             artwork="/art/cover.svg"
             preload="none"
+            background={{
+              src: "/demo/waves.gif",
+              stillSrc: "/demo/waves-still.png",
+              animate: "playing",
+            }}
             tracks={lazy}
           />
         ) : (
