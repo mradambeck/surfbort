@@ -10,6 +10,12 @@ import { createValueStore } from "./store";
 /** Once playback passes this point, Previous restarts the track instead of going back one. */
 const RESTART_THRESHOLD = 3;
 
+/** Seconds a seek can land from its target and still count as reaching it. */
+const SEEK_TOLERANCE = 0.25;
+
+/** Times a seek that lands away from its target is sent again before giving up. */
+const MAX_SEEK_RETRIES = 2;
+
 /** How many tracks preloadDurations() fetches metadata for at once. */
 const PRELOAD_CONCURRENCY = 3;
 
@@ -97,6 +103,8 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private seekTarget: number | null = null;
   /** The target last handed to the media. */
   private seekInFlight: number | null = null;
+  /** Times the current target has been sent again after the media landed somewhere else. */
+  private seekRetries = 0;
 
   constructor(tracks: readonly Track[], initialTrack: number, config: EngineConfig) {
     const index = tracks.length ? Math.min(Math.max(Math.trunc(initialTrack) || 0, 0), tracks.length - 1) : 0;
@@ -320,6 +328,7 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     if (!this.ws || !(duration > 0)) return;
     const time = Math.min(Math.max(seconds, 0), duration);
     this.seekTarget = time;
+    this.seekRetries = 0;
     this.time.set(time);
     // Until the track is ready, handleReady hands the position over.
     if (status !== "ready") {
@@ -439,6 +448,7 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
   private clearSeek(): void {
     this.seekTarget = null;
     this.seekInFlight = null;
+    this.seekRetries = 0;
   }
 
   /** Loads the current track from the start. */
@@ -566,8 +576,18 @@ export class PlaylistEngine implements mediaSession.MediaSessionClient {
     const ws = this.ws;
     if (ws && ws.getCurrentTime() < ws.getDuration()) this.heldAtEnd = false;
     if (this.seekTarget === null) return;
-    if (this.seekTarget === this.seekInFlight) this.clearSeek();
-    else this.applySeek();
+    if (this.seekTarget !== this.seekInFlight) {
+      this.applySeek();
+      return;
+    }
+    // WebKit can land a seek made right after one to the very end back at the end. Send it again.
+    const missed = ws && Math.abs(ws.getCurrentTime() - this.seekTarget) > SEEK_TOLERANCE;
+    if (missed && this.seekRetries < MAX_SEEK_RETRIES) {
+      this.seekRetries++;
+      this.applySeek();
+      return;
+    }
+    this.clearSeek();
   };
 
   /** A click or drag on the waveform wins over any keyboard seek still in progress. */

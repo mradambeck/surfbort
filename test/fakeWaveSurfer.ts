@@ -155,8 +155,9 @@ export class FakeWaveSurfer {
     else this.landSeek();
   });
 
-  /** Lands a seek held by holdSeeks. */
-  finishSeek(): void {
+  /** Lands a seek held by holdSeeks, at `landAt` if given, the way WebKit sometimes misplaces one. */
+  finishSeek(landAt?: number): void {
+    if (landAt !== undefined) this.currentTime = landAt;
     this.media.seeking = false;
     this.landSeek();
   }

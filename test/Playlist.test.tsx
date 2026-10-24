@@ -408,6 +408,34 @@ describe("seeking and volume", () => {
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
+  it("sends a seek again when the media lands it back at the end", async () => {
+    const { user, ws } = renderReady();
+    await user.click(screen.getByRole("button", { name: "Play" }));
+    ws.holdSeeks = true;
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    slider.focus();
+    await user.keyboard("{End}{Home}");
+
+    act(() => ws.finishSeek());
+    expect(ws.setTime).toHaveBeenLastCalledWith(0);
+    // WebKit can finish the seek to 0 at the end instead.
+    act(() => ws.finishSeek(180));
+    expect(ws.setTime).toHaveBeenCalledTimes(3);
+    expect(ws.setTime).toHaveBeenLastCalledWith(0);
+    act(() => ws.finishSeek());
+    expect(slider).toHaveAttribute("aria-valuetext", expect.stringMatching(/^0:00 of /));
+    expect(rows()[0]).toHaveAttribute("aria-current", "true");
+  });
+
+  it("gives up on a seek the media keeps landing elsewhere", async () => {
+    const { user, ws } = renderReady();
+    ws.holdSeeks = true;
+    screen.getByRole("slider", { name: "Seek" }).focus();
+    await user.keyboard("{ArrowRight}");
+    for (let i = 0; i < 5; i++) act(() => ws.finishSeek(0));
+    expect(ws.setTime).toHaveBeenCalledTimes(3);
+  });
+
   it("stays on the track when End is followed at once by a click on the waveform", async () => {
     const { user, ws } = renderReady();
     await user.click(screen.getByRole("button", { name: "Play" }));
